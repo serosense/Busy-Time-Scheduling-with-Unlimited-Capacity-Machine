@@ -31,16 +31,95 @@ Per the project requirements, the algorithm is **pseudopolynomial**. It redefine
 
 3.  **`create_full_time_range`**: Generates the discrete time steps required for the pseudopolynomial iteration.
 
-## Requirements
+## 💡 Real-World Use Case: The "Infinite Truck" Logistics Problem
 
-* **Language**: Python 3.x 
-* **Libraries**: Standard Python libraries (`functools`, `typing`, `os`).
+To understand the utility of this algorithm, consider a **logistics company** managing a specialized transport truck.
+* **The Cost:** Renting the truck costs **$100 per minute** of engine time.
+* **The Advantage:** The truck has **unlimited capacity** (it can carry 1 or 1,000 packages simultaneously for the same cost).
+* **The Challenge:** Clients have different "Ready Times" ($r_i$) and "Deadlines" ($d_i$).
 
-## How to Run
+### The Scenario
+You have 4 clients.
+* **Clients A, B, C:** Packages ready at **12:00**. Deadline at **18:00**. Trip takes **1 hour**.
+* **Client D:** Package ready at **08:00**. Deadline at **10:00**. Trip takes **1 hour**.
 
-1.  Ensure the script `Project_CS430.py` is in the same directory as your input files.
-2.  Input files must be named `instance01.txt`, `instance02.txt`, ..., `instance99.txt`.
-3.  Run the script:
+#### ❌ Without Optimization (Naive Approach)
+1.  Driver services Client D at 08:00. **(Cost: 60 mins)**.
+2.  Driver waits. At 12:00, services Client A. **(Cost: +60 mins)**.
+3.  Driver returns for Client B at 13:30. **(Cost: +60 mins)**.
+4.  Finally, services Client C. **(Cost: +60 mins)**.
+* **Total:** 240 minutes of active time. 💸 **Massive Waste.**
 
-```bash
-python Project_CS430.py
+#### ✅ With This Algorithm
+The system mathematically analyzes the **slack** (flexibility) of every job:
+1.  It detects that Clients A, B, and C can be **delayed**. Although ready at 12:00, shifting them to **14:00** aligns them perfectly into a single batch while still meeting the 18:00 deadline.
+2.  It recognizes Client D is an outlier that cannot be merged.
+
+**Optimal Schedule:**
+* **Batch 1 (08:00 - 09:00):** Transports Client D.
+* **Batch 2 (14:00 - 15:00):** Transports A, B, and C simultaneously.
+* **Total:** **120 minutes**. 🚀 **50% Cost Reduction.**
+
+---
+
+## 🧠 Algorithmic Deep Dive: Beyond Simple Heuristics
+
+While the example above seems simple, the computational problem is **NP-Hard** in general contexts. Simple "greedy" strategies fail when dependencies cascade. This project solves it using a **Recursive Decision Tree**.
+
+### The "Butterfly Effect" of Scheduling
+Consider a scenario with one **Long Job (Pivot)** and several overlapping **Short Jobs**.
+* **Pivot Job ($P$):** Length 10. Flexible Window `[0, 30]`.
+* **Job A, B, C:** Small jobs scattered across the timeline.
+
+The algorithm must decide where to place $P$. This single decision **fractures** the timeline into two independent sub-problems (Left and Right).
+
+#### The Recursion Logic
+If we shift the Pivot $P$ to start at $t=5$:
+1.  **Pivot:** Occupies `[5, 15]`.
+2.  **Left Sub-problem (`t < 5`):** The algorithm recursively solves the optimal schedule for any job trapped before $t=5$.
+3.  **Right Sub-problem (`t > 15`):** The algorithm recursively solves for jobs after $t=15$.
+4.  **Overlap Calculation:** It checks which jobs are "swallowed" (covered for free) by the Pivot's interval `[5, 15]`.
+
+[cite_start]The code implements this recurrence relation[cite: 516]:
+$$Cost([t_1, t_2), \ell) = \min_{t \in \mathcal{T}} \left( \text{BusyTime}(P, t) + Cost_{Left}(t_1, t) + Cost_{Right}(t+p, t_2) \right)$$
+
+By using **Memoization** (`@lru_cache`), we avoid recalculating these branches, turning an exponential problem into a manageable **Pseudopolynomial** one.
+
+---
+
+## ⚙️ Implementation Details
+
+### Complexity
+* [cite_start]**Time Complexity:** $O(n^2 T^2 + n T^3)$[cite: 514].
+    * $n$: Number of jobs.
+    * $T$: Range of "Interesting Times" (from earliest release to latest deadline).
+* This complexity makes the solution highly efficient for bounded time ranges, guaranteeing the **Global Optimum**.
+
+### Code Structure
+* **`costs(t1, t2, l)`**: The driver function. Uses Dynamic Programming to find the minimum busy time.
+* **`fit_unscheduled_jobs`**: A post-processing heuristic. [cite_start]Since the DP focuses on "interval-bridging" jobs, this function greedily inserts non-critical jobs into existing gaps[cite: 516].
+* **`create_full_time_range`**: Discretizes the timeline to ensure mathematical precision.
+
+---
+
+## 🚀 How to Run
+
+### Prerequisites
+* Python 3.x
+* Standard libraries: `functools`, `typing`, `os`.
+
+### Execution
+1.  Clone the repo.
+2.  Place input files in the root directory named `instance01.txt`, `instance02.txt`, etc.
+3.  Run:
+    ```bash
+    python Project_CS430.py
+    ```
+
+### Input Format
+The first line contains $n$ (number of jobs). Following lines contain $r_i, d_i, p_i$:
+```text
+5
+19 31 2
+4 8 2
+...
